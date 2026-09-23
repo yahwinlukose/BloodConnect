@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BloodConnect</string>
+    <string name="login">Login</string>
+    <string name="register">Register</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="donate_blood">Donate Blood</string>
+    <string name="request_blood">Request Blood</string>
+    <string name="greeting">Hello, User!</string>
+    <string name="home">Home</string>
+    <string name="requests">Requests</string>
+    <string name="profile">Profile</string>
+    <string name="don_have_account">Don\'t have an account? Register</string>
+    <string name="already_have_account">Already have an account? Login</string>
+</resources>
