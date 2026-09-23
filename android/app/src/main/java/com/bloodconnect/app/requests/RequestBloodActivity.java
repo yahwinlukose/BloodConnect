@@ -137,11 +137,71 @@ public class RequestBloodActivity extends AppCompatActivity {
     private void setupSubmitButton() {
         btnSubmitRequest.setOnClickListener(v -> {
             if (validateInput()) {
-                // Mock behavior: after successful validation, show toast and finish
-                Toast.makeText(this, "Blood request created successfully", Toast.LENGTH_SHORT).show();
-                finish();
+                submitRequestToApi();
             }
         });
+    }
+
+    /**
+     * Submits the validated blood request to the Django backend via Retrofit.
+     * Latitude and longitude are deliberately omitted (sent as null in the model) 
+     * because location/map selection has not been implemented yet in the UI.
+     */
+    private void submitRequestToApi() {
+        // Disable button to prevent duplicate submissions
+        btnSubmitRequest.setEnabled(false);
+        btnSubmitRequest.setText("Submitting...");
+
+        String bloodGroup = inputBloodGroup.getText().toString().trim();
+        int units = Integer.parseInt(inputUnits.getText().toString().trim());
+        String hospital = inputHospital.getText().toString().trim();
+        String location = inputLocation.getText().toString().trim();
+        String date = inputDate.getText().toString().trim();
+        String urgency = inputUrgency.getText().toString().trim();
+        String description = inputDescription.getText().toString().trim();
+
+        com.bloodconnect.app.network.models.BloodRequestCreateRequest request = 
+            new com.bloodconnect.app.network.models.BloodRequestCreateRequest(
+                bloodGroup, units, hospital, location, urgency, date, description
+        );
+
+        com.bloodconnect.app.network.RetrofitClient.getApiService(this)
+            .createBloodRequest(request)
+            .enqueue(new retrofit2.Callback<com.bloodconnect.app.network.models.BloodRequestResponse>() {
+                @Override
+                public void onResponse(
+                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call, 
+                        @androidx.annotation.NonNull retrofit2.Response<com.bloodconnect.app.network.models.BloodRequestResponse> response) {
+                    
+                    btnSubmitRequest.setEnabled(true);
+                    btnSubmitRequest.setText("Submit Blood Request");
+
+                    if (response.isSuccessful() && response.body() != null) {
+                        // HTTP 201 Created
+                        Toast.makeText(RequestBloodActivity.this, "Blood request created successfully", Toast.LENGTH_SHORT).show();
+                        finish(); // Returns to HomeActivity
+                    } else if (response.code() == 400) {
+                        // HTTP 400 Bad Request / Validation Error
+                        Toast.makeText(RequestBloodActivity.this, "Invalid request. Please check your input.", Toast.LENGTH_LONG).show();
+                    } else if (response.code() == 401 || response.code() == 403) {
+                        // HTTP 401 Unauthorized
+                        Toast.makeText(RequestBloodActivity.this, "Session expired. Please log in again.", Toast.LENGTH_LONG).show();
+                    } else {
+                        // Other HTTP errors
+                        Toast.makeText(RequestBloodActivity.this, "Server error. Please try again later.", Toast.LENGTH_LONG).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(
+                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call, 
+                        @androidx.annotation.NonNull Throwable t) {
+                    
+                    btnSubmitRequest.setEnabled(true);
+                    btnSubmitRequest.setText("Submit Blood Request");
+                    Toast.makeText(RequestBloodActivity.this, "Unable to connect to server. Please check your connection.", Toast.LENGTH_LONG).show();
+                }
+            });
     }
 
     private boolean validateInput() {
