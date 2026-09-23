@@ -31,15 +31,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ('email', 'password', 'first_name', 'last_name', 'phone', 'role')
 
-    def validate_role(self, value):
-        """
-        Ensure public registration only allows DONOR and REQUESTER roles.
-        """
-        allowed_roles = [User.Role.DONOR, User.Role.REQUESTER]
-        if value not in allowed_roles:
-            raise serializers.ValidationError("Registration for this role is not allowed publicly.")
-        return value
-        
     def validate_phone(self, value):
         """
         Validate that the phone number is reasonable and non-empty.
@@ -53,12 +44,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        # We always create normal users as USER role, regardless of what they might send in 'role'
+        validated_data.pop('role', None)
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
             phone=validated_data.get('phone', ''),
-            role=validated_data.get('role', User.Role.DONOR)
+            role=User.Role.USER
         )
         return user

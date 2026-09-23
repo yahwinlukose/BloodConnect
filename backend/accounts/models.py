@@ -36,8 +36,7 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractUser):
     class Role(models.TextChoices):
-        DONOR = 'DONOR', _('Donor')
-        REQUESTER = 'REQUESTER', _('Requester')
+        USER = 'USER', _('User')
         HOSPITAL = 'HOSPITAL', _('Hospital')
         BLOOD_BANK = 'BLOOD_BANK', _('Blood Bank')
         ADMIN = 'ADMIN', _('Admin')
@@ -50,7 +49,7 @@ class User(AbstractUser):
     role = models.CharField(
         max_length=20,
         choices=Role.choices,
-        default=Role.DONOR,
+        default=Role.USER,
     )
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

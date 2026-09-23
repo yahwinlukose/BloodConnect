@@ -15,13 +15,13 @@ class BloodRequestAPITests(APITestCase):
             email='admin@example.com', password='pwd', role=User.Role.ADMIN
         )
         self.requester1 = User.objects.create_user(
-            email='req1@example.com', password='pwd', role=User.Role.REQUESTER
+            email='req1@example.com', password='pwd', role=User.Role.USER
         )
         self.requester2 = User.objects.create_user(
-            email='req2@example.com', password='pwd', role=User.Role.REQUESTER
+            email='req2@example.com', password='pwd', role=User.Role.USER
         )
         self.donor = User.objects.create_user(
-            email='donor@example.com', password='pwd', role=User.Role.DONOR
+            email='donor@example.com', password='pwd', role=User.Role.USER
         )
         
         self.valid_payload = {
@@ -50,10 +50,6 @@ class BloodRequestAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(BloodRequest.objects.count(), 1)
 
-    def test_donor_cannot_create_request(self):
-        self.client.force_authenticate(user=self.donor)
-        response = self.client.post(self.list_create_url, self.valid_payload)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_unauthenticated_user_cannot_create_request(self):
         response = self.client.post(self.list_create_url, self.valid_payload)

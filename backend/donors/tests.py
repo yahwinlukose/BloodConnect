@@ -11,22 +11,22 @@ class DonorProfileAPITests(APITestCase):
     def setUp(self):
         self.profile_url = reverse('donor_profile')
         
-        # Create a DONOR user
+        # Create a user (will act as donor)
         self.donor_user = User.objects.create_user(
             email='donor@example.com',
             password='password123',
             first_name='John',
             last_name='Doe',
-            role=User.Role.DONOR
+            role=User.Role.USER
         )
         
-        # Create a REQUESTER user
+        # Create another user
         self.requester_user = User.objects.create_user(
             email='requester@example.com',
             password='password123',
             first_name='Jane',
             last_name='Smith',
-            role=User.Role.REQUESTER
+            role=User.Role.USER
         )
 
         self.valid_payload = {
@@ -49,10 +49,6 @@ class DonorProfileAPITests(APITestCase):
         response = self.client.post(self.profile_url, self.valid_payload)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_non_donor_cannot_create_profile(self):
-        self.client.force_authenticate(user=self.requester_user)
-        response = self.client.post(self.profile_url, self.valid_payload)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_cannot_create_second_donor_profile(self):
         self.client.force_authenticate(user=self.donor_user)
@@ -81,7 +77,7 @@ class DonorProfileAPITests(APITestCase):
         donor2 = User.objects.create_user(
             email='donor2@example.com',
             password='password123',
-            role=User.Role.DONOR
+            role=User.Role.USER
         )
         self.client.force_authenticate(user=donor2)
         

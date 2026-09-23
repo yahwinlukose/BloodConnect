@@ -6,8 +6,7 @@ User = get_user_model()
 class BloodRequestPermission(permissions.BasePermission):
     """
     Custom permission for BloodRequest API:
-    - DONOR: Can view (safe methods). Cannot create/modify/delete.
-    - REQUESTER: Can view. Can create. Can modify only their own requests.
+    - USER: Can view. Can create. Can modify only their own requests.
     - ADMIN: Full access.
     """
 
@@ -16,9 +15,9 @@ class BloodRequestPermission(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
 
-        # Only REQUESTER and ADMIN can create (POST)
+        # Only authenticated users (including ADMIN, USER, HOSPITAL, etc.) can create (POST)
         if request.method == 'POST':
-            return request.user and request.user.is_authenticated and request.user.role in [User.Role.REQUESTER, User.Role.ADMIN]
+            return request.user and request.user.is_authenticated
 
         # For object-level methods (PATCH, DELETE), we return True here 
         # and let has_object_permission handle the specific checks.
@@ -33,9 +32,9 @@ class BloodRequestPermission(permissions.BasePermission):
         if request.user.role == User.Role.ADMIN:
             return True
 
-        # REQUESTER can only modify (PATCH/PUT) their own request
+        # The creator of the request can modify (PUT/PATCH) it
         if request.method in ['PUT', 'PATCH']:
-            return obj.requester == request.user and request.user.role == User.Role.REQUESTER
+            return obj.requester == request.user
 
         # Deletion is reserved for ADMIN only (normal users should cancel)
         if request.method == 'DELETE':

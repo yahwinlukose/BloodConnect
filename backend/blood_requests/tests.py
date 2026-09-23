@@ -13,7 +13,7 @@ class BloodRequestModelTests(TestCase):
             password='password123',
             first_name='Test',
             last_name='User',
-            role=User.Role.REQUESTER
+            role=User.Role.USER
         )
         
         self.valid_data = {

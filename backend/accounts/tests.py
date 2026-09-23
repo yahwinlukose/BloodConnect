@@ -19,7 +19,7 @@ class AuthAPITests(APITestCase):
             'first_name': 'Test',
             'last_name': 'User',
             'phone': '1234567890',
-            'role': User.Role.DONOR
+            'role': User.Role.USER
         }
 
     def test_successful_registration(self):
@@ -32,13 +32,6 @@ class AuthAPITests(APITestCase):
         response = self.client.post(self.register_url, self.user_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('email', response.data)
-
-    def test_invalid_registration_role(self):
-        invalid_data = self.user_data.copy()
-        invalid_data['role'] = User.Role.ADMIN
-        response = self.client.post(self.register_url, invalid_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('role', response.data)
 
     def test_successful_login(self):
         self.client.post(self.register_url, self.user_data)

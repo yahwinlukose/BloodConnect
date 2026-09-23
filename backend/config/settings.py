@@ -43,6 +43,8 @@ INSTALLED_APPS = [
     'accounts',
     'donors',
     'blood_requests',
+    'matching',
+    'notifications',
 ]
 
 MIDDLEWARE = [

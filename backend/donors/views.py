@@ -29,9 +29,6 @@ class DonorProfileView(generics.RetrieveUpdateAPIView, generics.CreateAPIView):
         """
         Creates a new DonorProfile for the authenticated user.
         """
-        if request.user.role != User.Role.DONOR:
-            raise PermissionDenied(detail="Only users with the DONOR role can create a donor profile.")
-            
         if hasattr(request.user, 'donor_profile'):
             return Response(
                 {"detail": "User already has a donor profile."},

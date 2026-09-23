@@ -8,7 +8,7 @@ from .serializers import UserRegistrationSerializer, UserSerializer
 class RegisterView(generics.CreateAPIView):
     """
     API endpoint to register a new user.
-    Only DONOR and REQUESTER roles are allowed.
+    All public registrations default to the standard USER role.
     """
     serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
