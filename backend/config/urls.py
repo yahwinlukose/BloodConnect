@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/donors/', include('donors.urls')),
     path('api/blood-requests/', include('blood_requests.urls')),
+    path('api/devices/', include('devices.urls')),
 ]

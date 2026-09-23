@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'blood_requests',
     'matching',
     'notifications',
+    'devices',
 ]
 
 MIDDLEWARE = [
