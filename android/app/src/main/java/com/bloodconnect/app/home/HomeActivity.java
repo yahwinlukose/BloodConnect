@@ -46,7 +46,7 @@ public class HomeActivity extends AppCompatActivity {
                 startActivity(new Intent(this, com.bloodconnect.app.requests.MyRequestsActivity.class));
                 return true;
             } else if (itemId == R.id.nav_profile) {
-                Toast.makeText(this, "Profile selected", Toast.LENGTH_SHORT).show();
+                startActivity(new Intent(this, com.bloodconnect.app.profile.DonorProfileActivity.class));
                 return true;
             }
             return false;
