@@ -32,8 +32,8 @@ class BloodRequestPermission(permissions.BasePermission):
         if request.user.role == User.Role.ADMIN:
             return True
 
-        # The creator of the request can modify (PUT/PATCH) it
-        if request.method in ['PUT', 'PATCH']:
+        # The creator of the request can modify (PUT/PATCH/POST) it
+        if request.method in ['PUT', 'PATCH', 'POST']:
             return obj.requester == request.user
 
         # Deletion is reserved for ADMIN only (normal users should cancel)
