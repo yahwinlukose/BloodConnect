@@ -37,12 +37,16 @@ public class RetrofitClient {
                 okhttp3.Request original = chain.request();
                 okhttp3.Request.Builder builder = original.newBuilder();
 
+                String noAuth = original.header("No-Authentication");
+
                 com.bloodconnect.app.auth.TokenManager tokenManager = new com.bloodconnect.app.auth.TokenManager(context);
                 String token = tokenManager.getAccessToken();
 
-                if (token != null && !token.isEmpty()) {
+                if (noAuth == null && token != null && !token.isEmpty()) {
                     builder.header("Authorization", "Bearer " + token);
                 }
+
+                builder.removeHeader("No-Authentication");
 
                 return chain.proceed(builder.build());
             };

@@ -7,6 +7,7 @@ import com.bloodconnect.app.network.models.BloodRequestResponse;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.Headers;
 import retrofit2.http.POST;
 
 /**
@@ -21,6 +22,7 @@ public interface ApiService {
      * @param request The user credentials (email and password).
      * @return A Retrofit Call containing the LoginResponse (tokens).
      */
+    @Headers("No-Authentication: true")
     @POST("auth/login/")
     Call<LoginResponse> login(@Body LoginRequest request);
 
