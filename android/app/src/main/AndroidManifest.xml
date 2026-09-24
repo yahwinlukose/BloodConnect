@@ -25,6 +25,8 @@
         <activity android:name=".home.HomeActivity" />
         <activity android:name=".requests.RequestBloodActivity" />
         <activity android:name=".requests.MyRequestsActivity" />
+        <activity android:name=".requests.RequestDetailsActivity" />
+        <activity android:name=".requests.MatchedDonorsActivity" />
         <activity android:name=".profile.DonorProfileActivity" />
         
     </application>

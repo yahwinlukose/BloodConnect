@@ -8,6 +8,7 @@ import com.bloodconnect.app.network.models.BloodRequest;
 import com.bloodconnect.app.network.models.DonorProfile;
 import com.bloodconnect.app.network.models.DonorProfileCreateRequest;
 import com.bloodconnect.app.network.models.DonorProfileUpdateRequest;
+import com.bloodconnect.app.network.models.DonorMatch;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ import retrofit2.http.Headers;
 import retrofit2.http.POST;
 import retrofit2.http.GET;
 import retrofit2.http.PATCH;
+import retrofit2.http.Path;
 
 /**
  * ApiService defines the HTTP API endpoints used by Retrofit to communicate with the Django backend.
@@ -56,5 +58,11 @@ public interface ApiService {
 
     @PATCH("donors/profile/")
     Call<DonorProfile> updateDonorProfile(@Body DonorProfileUpdateRequest request);
+
+    @POST("blood-requests/{requestId}/matches/generate/")
+    Call<List<DonorMatch>> generateMatches(@Path("requestId") int requestId);
+
+    @GET("blood-requests/{requestId}/matches/")
+    Call<List<DonorMatch>> getMatches(@Path("requestId") int requestId);
 
 }

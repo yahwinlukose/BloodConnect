@@ -39,6 +39,12 @@ public class BloodRequestAdapter extends RecyclerView.Adapter<BloodRequestAdapte
         holder.tvDate.setText(request.getRequiredDate() != null ? request.getRequiredDate() : "N/A");
         holder.tvUrgency.setText("Urgency: " + (request.getUrgency() != null ? request.getUrgency() : "N/A"));
         holder.tvStatus.setText("Status: " + (request.getStatus() != null ? request.getStatus() : "N/A"));
+
+        holder.itemView.setOnClickListener(v -> {
+            android.content.Intent intent = new android.content.Intent(v.getContext(), RequestDetailsActivity.class);
+            intent.putExtra("request_json", new com.google.gson.Gson().toJson(request));
+            v.getContext().startActivity(intent);
+        });
     }
 
     @Override
