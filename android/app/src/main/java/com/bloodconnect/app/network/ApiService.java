@@ -9,6 +9,7 @@ import com.bloodconnect.app.network.models.DonorProfile;
 import com.bloodconnect.app.network.models.DonorProfileCreateRequest;
 import com.bloodconnect.app.network.models.DonorProfileUpdateRequest;
 import com.bloodconnect.app.network.models.DonorMatch;
+import com.bloodconnect.app.network.models.DonorMatchForDonor;
 
 import java.util.List;
 
@@ -64,5 +65,14 @@ public interface ApiService {
 
     @GET("blood-requests/{requestId}/matches/")
     Call<List<DonorMatch>> getMatches(@Path("requestId") int requestId);
+
+    @GET("donors/matches/")
+    Call<List<DonorMatchForDonor>> getDonorMatches();
+
+    @POST("donors/matches/{matchId}/accept/")
+    Call<DonorMatchForDonor> acceptDonorMatch(@Path("matchId") int matchId);
+
+    @POST("donors/matches/{matchId}/reject/")
+    Call<DonorMatchForDonor> rejectDonorMatch(@Path("matchId") int matchId);
 
 }

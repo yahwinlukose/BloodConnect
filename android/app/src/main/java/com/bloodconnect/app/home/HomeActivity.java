@@ -23,15 +23,15 @@ public class HomeActivity extends AppCompatActivity {
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        
+
         // Mock unified user actions
         MaterialCardView cardDonate = findViewById(R.id.cardDonateBlood);
         MaterialCardView cardRequest = findViewById(R.id.cardRequestBlood);
-        
+
         cardDonate.setOnClickListener(v -> {
-            Toast.makeText(this, "Navigating to Donate flow...", Toast.LENGTH_SHORT).show();
+            startActivity(new Intent(this, com.bloodconnect.app.requests.DonateBloodActivity.class));
         });
-        
+
         cardRequest.setOnClickListener(v -> {
             startActivity(new Intent(this, RequestBloodActivity.class));
         });

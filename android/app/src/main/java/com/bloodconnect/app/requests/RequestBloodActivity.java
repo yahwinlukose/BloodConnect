@@ -15,6 +15,24 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
+import android.widget.Button;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import org.maplibre.android.MapLibre;
+import org.maplibre.android.maps.MapView;
+import org.maplibre.android.maps.MapLibreMap;
+import org.maplibre.android.maps.Style;
+import org.maplibre.android.style.sources.RasterSource;
+import org.maplibre.android.style.sources.TileSet;
+import org.maplibre.android.style.layers.RasterLayer;
+import org.maplibre.android.location.LocationComponent;
+import org.maplibre.android.location.LocationComponentActivationOptions;
+import org.maplibre.android.location.modes.CameraMode;
+import org.maplibre.android.location.modes.RenderMode;
+
 import java.util.Calendar;
 import java.util.Locale;
 
@@ -42,10 +60,14 @@ public class RequestBloodActivity extends AppCompatActivity {
     private TextInputLayout layoutDescription;
 
     private MaterialButton btnSubmitRequest;
+    private Button btnUseMyLocation;
+    private MapView mapView;
+    private MapLibreMap mapLibreMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        MapLibre.getInstance(this);
         setContentView(R.layout.activity_request_blood);
 
         setupToolbar();
@@ -53,6 +75,7 @@ public class RequestBloodActivity extends AppCompatActivity {
         setupDropdowns();
         setupDatePicker();
         setupSubmitButton();
+        setupMap(savedInstanceState);
     }
 
     private void setupToolbar() {
@@ -88,6 +111,35 @@ public class RequestBloodActivity extends AppCompatActivity {
         layoutDescription = findViewById(R.id.layoutDescription);
 
         btnSubmitRequest = findViewById(R.id.btnSubmitRequest);
+        btnUseMyLocation = findViewById(R.id.btnUseMyLocation);
+        mapView = findViewById(R.id.mapView);
+    }
+
+    private void setupMap(Bundle savedInstanceState) {
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(map -> {
+            mapLibreMap = map;
+
+            TileSet tileSet = new TileSet("2.1.0", "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png");
+            RasterSource rasterSource = new RasterSource("osm-source", tileSet, 256);
+            RasterLayer rasterLayer = new RasterLayer("osm-layer", "osm-source");
+
+            Style.Builder styleBuilder = new Style.Builder()
+                    .withSource(rasterSource)
+                    .withLayer(rasterLayer);
+
+            map.setStyle(styleBuilder, style -> {
+                // Style loaded
+            });
+        });
+
+        btnUseMyLocation.setOnClickListener(v -> {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                enableLocationComponent();
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 100);
+            }
+        });
     }
 
     private void setupDropdowns() {
@@ -144,7 +196,7 @@ public class RequestBloodActivity extends AppCompatActivity {
 
     /**
      * Submits the validated blood request to the Django backend via Retrofit.
-     * Latitude and longitude are deliberately omitted (sent as null in the model) 
+     * Latitude and longitude are deliberately omitted (sent as null in the model)
      * because location/map selection has not been implemented yet in the UI.
      */
     private void submitRequestToApi() {
@@ -160,19 +212,27 @@ public class RequestBloodActivity extends AppCompatActivity {
         String urgency = inputUrgency.getText().toString().trim();
         String description = inputDescription.getText().toString().trim();
 
-        com.bloodconnect.app.network.models.BloodRequestCreateRequest request = 
+        com.bloodconnect.app.network.models.BloodRequestCreateRequest request =
             new com.bloodconnect.app.network.models.BloodRequestCreateRequest(
                 bloodGroup, units, hospital, location, urgency, date, description
         );
+
+        if (mapLibreMap != null) {
+            org.maplibre.android.geometry.LatLng target = mapLibreMap.getCameraPosition().target;
+            double lat = Math.round(target.getLatitude() * 1000000.0) / 1000000.0;
+            double lng = Math.round(target.getLongitude() * 1000000.0) / 1000000.0;
+            request.setLatitude(lat);
+            request.setLongitude(lng);
+        }
 
         com.bloodconnect.app.network.RetrofitClient.getApiService(this)
             .createBloodRequest(request)
             .enqueue(new retrofit2.Callback<com.bloodconnect.app.network.models.BloodRequestResponse>() {
                 @Override
                 public void onResponse(
-                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call, 
+                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call,
                         @androidx.annotation.NonNull retrofit2.Response<com.bloodconnect.app.network.models.BloodRequestResponse> response) {
-                    
+
                     btnSubmitRequest.setEnabled(true);
                     btnSubmitRequest.setText("Submit Blood Request");
 
@@ -182,7 +242,14 @@ public class RequestBloodActivity extends AppCompatActivity {
                         finish(); // Returns to HomeActivity
                     } else if (response.code() == 400) {
                         // HTTP 400 Bad Request / Validation Error
-                        Toast.makeText(RequestBloodActivity.this, "Invalid request. Please check your input.", Toast.LENGTH_LONG).show();
+                        String errorBody = "";
+                        try {
+                            if (response.errorBody() != null) {
+                                errorBody = response.errorBody().string();
+                                android.util.Log.e("API_ERROR", errorBody);
+                            }
+                        } catch (Exception e) {}
+                        Toast.makeText(RequestBloodActivity.this, "Invalid request. Please check your input.\n" + errorBody, Toast.LENGTH_LONG).show();
                     } else if (response.code() == 401 || response.code() == 403) {
                         // HTTP 401 Unauthorized
                         Toast.makeText(RequestBloodActivity.this, "Session expired. Please log in again.", Toast.LENGTH_LONG).show();
@@ -194,9 +261,9 @@ public class RequestBloodActivity extends AppCompatActivity {
 
                 @Override
                 public void onFailure(
-                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call, 
+                        @androidx.annotation.NonNull retrofit2.Call<com.bloodconnect.app.network.models.BloodRequestResponse> call,
                         @androidx.annotation.NonNull Throwable t) {
-                    
+
                     btnSubmitRequest.setEnabled(true);
                     btnSubmitRequest.setText("Submit Blood Request");
                     Toast.makeText(RequestBloodActivity.this, "Unable to connect to server. Please check your connection.", Toast.LENGTH_LONG).show();
@@ -274,5 +341,69 @@ public class RequestBloodActivity extends AppCompatActivity {
         }
 
         return isValid;
+    }
+
+    @SuppressWarnings({"MissingPermission"})
+    private void enableLocationComponent() {
+        if (mapLibreMap != null && mapLibreMap.getStyle() != null) {
+            LocationComponent locationComponent = mapLibreMap.getLocationComponent();
+            locationComponent.activateLocationComponent(
+                    LocationComponentActivationOptions.builder(this, mapLibreMap.getStyle()).build());
+            locationComponent.setLocationComponentEnabled(true);
+            locationComponent.setCameraMode(CameraMode.TRACKING);
+            locationComponent.setRenderMode(RenderMode.COMPASS);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @androidx.annotation.NonNull String[] permissions, @androidx.annotation.NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 100 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            enableLocationComponent();
+        } else {
+            Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mapView.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mapView.onStop();
+    }
+
+    @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mapView.onDestroy();
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        mapView.onLowMemory();
     }
 }
