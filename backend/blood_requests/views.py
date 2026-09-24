@@ -1,7 +1,10 @@
 from rest_framework import viewsets
+from django.contrib.auth import get_user_model
 from .models import BloodRequest
 from .serializers import BloodRequestSerializer
 from .permissions import BloodRequestPermission
+
+User = get_user_model()
 
 class BloodRequestViewSet(viewsets.ModelViewSet):
     """
@@ -11,7 +14,11 @@ class BloodRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [BloodRequestPermission]
     
     def get_queryset(self):
-        return BloodRequest.objects.all().order_by('-created_at')
+        user = self.request.user
+        qs = BloodRequest.objects.all().order_by('-created_at')
+        if self.action == 'list' and user.role not in [User.Role.ADMIN, User.Role.HOSPITAL, User.Role.BLOOD_BANK]:
+            return qs.filter(requester=user)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(requester=self.request.user)

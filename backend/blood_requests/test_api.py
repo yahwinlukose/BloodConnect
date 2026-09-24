@@ -71,10 +71,26 @@ class BloodRequestAPITests(APITestCase):
         self.assertEqual(req_obj.requester, self.requester1)
         self.assertNotEqual(req_obj.requester, self.requester2)
 
-    def test_authenticated_user_can_list_requests(self):
+    def test_normal_user_cannot_see_others_requests(self):
         self._create_request(self.requester1)
         
         self.client.force_authenticate(user=self.donor)
+        response = self.client.get(self.list_create_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_normal_user_can_see_own_requests(self):
+        self._create_request(self.requester1)
+        
+        self.client.force_authenticate(user=self.requester1)
+        response = self.client.get(self.list_create_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_admin_can_see_all_requests(self):
+        self._create_request(self.requester1)
+        
+        self.client.force_authenticate(user=self.admin)
         response = self.client.get(self.list_create_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
