@@ -69,10 +69,19 @@ def find_eligible_donors(blood_request):
         distance_km = None
         if donor.latitude is not None and donor.longitude is not None and \
            blood_request.latitude is not None and blood_request.longitude is not None:
-            distance_km = calculate_distance_km(
-                float(blood_request.latitude), float(blood_request.longitude),
-                float(donor.latitude), float(donor.longitude)
-            )
+            try:
+                distance_km = calculate_distance_km(
+                    float(blood_request.latitude), float(blood_request.longitude),
+                    float(donor.latitude), float(donor.longitude)
+                )
+            except (TypeError, ValueError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    f"Distance calculation failed for BloodRequest {blood_request.id} "
+                    f"and Donor {donor.id}. Coordinates might be invalid strings. Error: {e}"
+                )
+                distance_km = None
 
         # Base scoring
         score = 50

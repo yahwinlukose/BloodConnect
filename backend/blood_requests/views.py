@@ -24,7 +24,16 @@ class BloodRequestViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(requester=self.request.user)
+        blood_request = serializer.save(requester=self.request.user)
+        try:
+            from matching.orchestrator import generate_matches
+            generate_matches(blood_request)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("Matching failed unexpectedly during BloodRequest creation: %s", str(e), exc_info=True)
+            # We re-raise the exception during development so it is not silently hidden
+            raise
 
     def _check_match_permission(self, blood_request):
         user = self.request.user
