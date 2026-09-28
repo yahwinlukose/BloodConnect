@@ -9,3 +9,5 @@ asgiref==3.12.1
 sqlparse==0.6.0
 dj-database-url==2.2.0
 whitenoise==6.7.0
+gunicorn==26.2.0
+uvicorn==0.54.0
