@@ -145,8 +145,18 @@
                 android:id="@+id/btnSubmitProfile"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="12dp"
                 android:text="Create Donor Profile" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLogout"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="24dp"
+                android:text="@string/logout"
+                android:textColor="@color/primaryColor"
+                app:strokeColor="@color/primaryColor" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

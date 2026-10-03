@@ -44,6 +44,7 @@ public class DonorProfileActivity extends AppCompatActivity {
     private TextInputEditText inputLastDonation;
     private SwitchMaterial switchAvailable;
     private MaterialButton btnSubmit;
+    private MaterialButton btnLogout;
     private View progressOverlay;
 
     private boolean isEditMode = false;
@@ -75,12 +76,14 @@ public class DonorProfileActivity extends AppCompatActivity {
         inputLastDonation = findViewById(R.id.inputLastDonation);
         switchAvailable = findViewById(R.id.switchAvailable);
         btnSubmit = findViewById(R.id.btnSubmitProfile);
+        btnLogout = findViewById(R.id.btnLogout);
         progressOverlay = findViewById(R.id.progressOverlay);
 
         setupDropdowns();
         setupDatePickers();
 
         btnSubmit.setOnClickListener(v -> submitProfile());
+        btnLogout.setOnClickListener(v -> performLogout());
 
         fetchProfile();
     }
@@ -264,13 +267,83 @@ public class DonorProfileActivity extends AppCompatActivity {
     private void setLoading(boolean loading) {
         progressOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
         btnSubmit.setEnabled(!loading);
+        btnLogout.setEnabled(!loading);
     }
 
     private void handleSessionExpired() {
         Toast.makeText(this, "Session expired. Please log in again.", Toast.LENGTH_LONG).show();
-        TokenManager tokenManager = new TokenManager(this);
-        tokenManager.clearTokens();
+        new TokenManager(this).clearTokens();
+        com.bloodconnect.app.network.RetrofitClient.resetClient();
         Intent intent = new Intent(this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
+
+    // -------------------------------------------------------------------------
+    // Logout
+    // -------------------------------------------------------------------------
+
+    /**
+     * Explicit logout flow:
+     *  1. Disable the logout button to prevent double-taps.
+     *  2. Call POST /api/auth/logout/ with the stored refresh token (best-effort server blacklist).
+     *  3. Clear local tokens and reset the Retrofit singleton regardless of the server response.
+     *  4. Navigate to LoginActivity, clearing the entire back stack.
+     *
+     * Passwords and JWTs are never logged.
+     */
+    private void performLogout() {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to log out?")
+                .setPositiveButton("Logout", (dialog, which) -> executeLogout())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void executeLogout() {
+        TokenManager tokenManager = new TokenManager(this);
+        String refreshToken = tokenManager.getRefreshToken();
+
+        // Disable the button immediately to prevent duplicate taps.
+        btnLogout.setEnabled(false);
+        btnLogout.setText(getString(R.string.logging_out));
+
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            // Attempt server-side token blacklist (best-effort).
+            com.bloodconnect.app.network.models.LogoutRequest logoutRequest =
+                    new com.bloodconnect.app.network.models.LogoutRequest(refreshToken);
+
+            RetrofitClient.getApiService(DonorProfileActivity.this)
+                    .logout(logoutRequest)
+                    .enqueue(new retrofit2.Callback<Void>() {
+                        @Override
+                        public void onResponse(@NonNull retrofit2.Call<Void> call,
+                                               @NonNull retrofit2.Response<Void> response) {
+                            // Clear tokens and navigate regardless of HTTP status.
+                            // Even if the server returns an error the user is logged out locally.
+                            finishLogout();
+                        }
+
+                        @Override
+                        public void onFailure(@NonNull retrofit2.Call<Void> call, @NonNull Throwable t) {
+                            // Network error during logout – still clear tokens locally.
+                            finishLogout();
+                        }
+                    });
+        } else {
+            // No refresh token present – clear locally and navigate.
+            finishLogout();
+        }
+    }
+
+    /** Clears tokens, resets the Retrofit singleton, and navigates to LoginActivity. */
+    private void finishLogout() {
+        new TokenManager(DonorProfileActivity.this).clearTokens();
+        RetrofitClient.resetClient();
+
+        Intent intent = new Intent(DonorProfileActivity.this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();

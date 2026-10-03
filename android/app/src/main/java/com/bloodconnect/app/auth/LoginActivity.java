@@ -23,6 +23,9 @@ import retrofit2.Response;
 
 public class LoginActivity extends AppCompatActivity {
 
+    /** Intent extra key used by RegisterActivity to pass the registered email for pre-filling. */
+    public static final String EXTRA_EMAIL = "extra_registered_email";
+
     private TextInputEditText etEmail;
     private TextInputEditText etPassword;
     private MaterialButton btnLogin;
@@ -38,6 +41,12 @@ public class LoginActivity extends AppCompatActivity {
         TextView tvRegister = findViewById(R.id.tvRegister);
 
         btnLogin.setOnClickListener(v -> performLogin());
+
+        // Pre-fill email if arriving from RegisterActivity after successful registration
+        String prefilledEmail = getIntent().getStringExtra(EXTRA_EMAIL);
+        if (prefilledEmail != null && !prefilledEmail.isEmpty()) {
+            etEmail.setText(prefilledEmail);
+        }
 
         // Navigate to Register Screen
         tvRegister.setOnClickListener(v -> {

@@ -13,4 +13,15 @@
     <string name="profile">Profile</string>
     <string name="don_have_account">Don\'t have an account? Register</string>
     <string name="already_have_account">Already have an account? Login</string>
+    <string name="first_name">First Name</string>
+    <string name="last_name">Last Name</string>
+    <string name="phone">Phone Number</string>
+    <string name="registration_success">Registration successful. Please log in.</string>
+    <string name="registering">Registering…</string>
+    <string name="err_field_required">This field is required</string>
+    <string name="err_password_too_short">Password must be at least 8 characters</string>
+    <string name="err_password_all_digits">Password cannot consist entirely of digits</string>
+    <string name="err_password_too_common">Password is too common. Please choose a stronger password</string>
+    <string name="logout">Logout</string>
+    <string name="logging_out">Logging out…</string>
 </resources>
