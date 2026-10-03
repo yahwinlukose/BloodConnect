@@ -81,3 +81,27 @@ class MatchingAPITests(APITestCase):
         response_list = self.client.get(self._get_list_url(self.blood_request.id))
         self.assertEqual(response_list.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response_list.data), 1)
+
+    def test_self_match_excluded_from_requester_matches(self):
+        # Create a donor profile for the requester and a matching record
+        requester_donor = DonorProfile.objects.create(
+            user=self.requester1,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            is_available=True
+        )
+        # Manually create an invalid self-match (simulating existing bad data)
+        DonorMatching.objects.create(
+            blood_request=self.blood_request,
+            donor=requester_donor,
+            status=DonorMatching.Status.PENDING
+        )
+        
+        self.client.force_authenticate(user=self.requester1)
+        response = self.client.get(self._get_list_url(self.blood_request.id))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # The response must not include the requester's own donor profile
+        for match in response.data:
+            self.assertNotEqual(match['donor']['user']['id'], self.requester1.id)

@@ -55,7 +55,11 @@ def generate_matches(blood_request):
             if update_fields:
                 match.save(update_fields=update_fields)
 
-    return DonorMatching.objects.filter(blood_request=blood_request).order_by(
+    return DonorMatching.objects.filter(
+        blood_request=blood_request
+    ).exclude(
+        donor__user=blood_request.requester
+    ).order_by(
         F('match_score').desc(),
         F('distance_km').asc(nulls_last=True)
     )
