@@ -98,6 +98,13 @@ class DonorMatchActionView(APIView):
 
         if self.action == 'ACCEPT':
             match.status = DonorMatching.Status.ACCEPTED
+            # When a donor accepts, if the request is PENDING, move it to MATCHING
+            # It should not become FULFILLED yet, as that represents actual completion
+            from blood_requests.models import BloodRequest
+            if match.blood_request.status == BloodRequest.Status.PENDING:
+                match.blood_request.status = BloodRequest.Status.MATCHING
+                match.blood_request.save(update_fields=['status'])
+                
         elif self.action == 'REJECT':
             match.status = DonorMatching.Status.REJECTED
 

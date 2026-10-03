@@ -129,6 +129,9 @@ class DonorMatchingAPITests(TestCase):
         self.assertEqual(data[0]['blood_request']['hospital_name'], "Hospital A")
 
     def test_donor_accepts_own_match(self):
+        # Initial status should be PENDING
+        self.assertEqual(self.req1.status, BloodRequest.Status.PENDING)
+
         self.client.force_authenticate(user=self.user1)
         res = self.client.post(f'/api/donors/matches/{self.match1.id}/accept/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -137,7 +140,29 @@ class DonorMatchingAPITests(TestCase):
         self.assertEqual(self.match1.status, DonorMatching.Status.ACCEPTED)
         self.assertIsNotNone(self.match1.responded_at)
 
+        # 1. Pending request + donor accepts -> matching becomes ACCEPTED and request becomes MATCHING.
+        # 2. Donor acceptance does not make the request FULFILLED.
+        self.req1.refresh_from_db()
+        self.assertEqual(self.req1.status, BloodRequest.Status.MATCHING)
+        self.assertNotEqual(self.req1.status, BloodRequest.Status.FULFILLED)
+
+        # 3. Multiple units still remain represented correctly (units_required was 2).
+        self.assertEqual(self.req1.units_required, 2)
+
+    def test_donor_acceptance_preserves_existing_request_status(self):
+        # Set the request to something other than PENDING
+        self.req1.status = BloodRequest.Status.FULFILLED
+        self.req1.save()
+
+        self.client.force_authenticate(user=self.user1)
+        res = self.client.post(f'/api/donors/matches/{self.match1.id}/accept/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.req1.refresh_from_db()
+        self.assertEqual(self.req1.status, BloodRequest.Status.FULFILLED)
+
     def test_donor_rejects_own_match(self):
+        # 4. Existing accepted/rejected behavior remains intact.
         self.client.force_authenticate(user=self.user2)
         res = self.client.post(f'/api/donors/matches/{self.match2.id}/reject/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -145,6 +170,10 @@ class DonorMatchingAPITests(TestCase):
         self.match2.refresh_from_db()
         self.assertEqual(self.match2.status, DonorMatching.Status.REJECTED)
         self.assertIsNotNone(self.match2.responded_at)
+
+        # Request status should remain PENDING
+        self.req1.refresh_from_db()
+        self.assertEqual(self.req1.status, BloodRequest.Status.PENDING)
 
     def test_donor_cannot_modify_another_donors_match(self):
         self.client.force_authenticate(user=self.user1)
@@ -163,3 +192,217 @@ class DonorMatchingAPITests(TestCase):
 
         self.match1.refresh_from_db()
         self.assertEqual(self.match1.status, DonorMatching.Status.ACCEPTED)
+
+
+class RetroactiveMatchingOnDonorProfileSaveTests(TestCase):
+    """
+    Tests for the post_save signal on DonorProfile that triggers retroactive
+    matching against all active BloodRequests.
+    """
+
+    def setUp(self):
+        self.today = datetime.date.today()
+        self.requester = User.objects.create_user(
+            email="retro_requester@test.com", password="password"
+        )
+        # A pre-existing active blood request for O+
+        self.active_request = BloodRequest.objects.create(
+            requester=self.requester,
+            blood_group="O+",
+            units_required=1,
+            hospital_name="Retro Hospital",
+            location="Retro Location",
+            latitude=10.0,
+            longitude=10.0,
+            urgency=BloodRequest.Urgency.NORMAL,
+            required_date=self.today + datetime.timedelta(days=2),
+            status=BloodRequest.Status.PENDING,
+        )
+
+    def _create_user(self, email):
+        return User.objects.create_user(email=email, password="password")
+
+    # ------------------------------------------------------------------
+    # Test 1: Blood request exists BEFORE donor profile creation
+    # ------------------------------------------------------------------
+    def test_creating_donor_profile_matches_pre_existing_request(self):
+        """
+        When a compatible, eligible DonorProfile is created after an active
+        BloodRequest already exists, a DonorMatching record must be created.
+        """
+        donor_user = self._create_user("retro_donor_create@test.com")
+        DonorProfile.objects.create(
+            user=donor_user,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            latitude=10.0,
+            longitude=10.0,
+            is_available=True,
+        )
+
+        self.assertEqual(
+            DonorMatching.objects.filter(blood_request=self.active_request).count(),
+            1,
+        )
+
+    # ------------------------------------------------------------------
+    # Test 2: Donor profile exists BEFORE blood request creation (existing behaviour)
+    # ------------------------------------------------------------------
+    def test_orchestrator_matches_pre_existing_donor_profile_to_new_request(self):
+        """
+        When generate_matches() is called for a new BloodRequest and a compatible,
+        eligible DonorProfile already exists, a DonorMatching record is created.
+        This verifies the orchestrator's pre-existing behaviour is unbroken by the
+        new signal.
+        """
+        donor_user = self._create_user("retro_donor_existing@test.com")
+        donor_profile = DonorProfile.objects.create(
+            user=donor_user,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            latitude=10.0,
+            longitude=10.0,
+            is_available=True,
+        )
+
+        # A new blood request is created after the donor profile exists.
+        # In production this goes through BloodRequestViewSet.perform_create()
+        # which calls generate_matches(). We call it directly here to test the
+        # orchestrator layer in isolation from the ViewSet.
+        from matching.orchestrator import generate_matches
+
+        new_request = BloodRequest.objects.create(
+            requester=self.requester,
+            blood_group="O+",
+            units_required=1,
+            hospital_name="New Hospital",
+            location="New Location",
+            latitude=10.0,
+            longitude=10.0,
+            urgency=BloodRequest.Urgency.NORMAL,
+            required_date=self.today + datetime.timedelta(days=3),
+            status=BloodRequest.Status.PENDING,
+        )
+        generate_matches(new_request)
+
+        self.assertTrue(
+            DonorMatching.objects.filter(
+                blood_request=new_request, donor=donor_profile
+            ).exists()
+        )
+
+    # ------------------------------------------------------------------
+    # Test 3: Ineligible donor → no match
+    # ------------------------------------------------------------------
+    def test_ineligible_donor_not_matched_on_profile_create(self):
+        """
+        A donor whose last_donation_date is within 90 days must not be matched
+        even when their profile is created after an active request exists.
+        """
+        donor_user = self._create_user("retro_ineligible@test.com")
+        recent_donation = self.today - datetime.timedelta(days=30)
+        DonorProfile.objects.create(
+            user=donor_user,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            is_available=True,
+            last_donation_date=recent_donation,
+        )
+
+        self.assertEqual(
+            DonorMatching.objects.filter(blood_request=self.active_request).count(),
+            0,
+        )
+
+    # ------------------------------------------------------------------
+    # Test 4: Updating donor profile doesn't create duplicate matches
+    # ------------------------------------------------------------------
+    def test_updating_donor_profile_does_not_create_duplicate_matches(self):
+        """
+        Repeated DonorProfile saves (e.g. location updates) must not create
+        additional DonorMatching rows for the same (blood_request, donor) pair.
+        """
+        donor_user = self._create_user("retro_update@test.com")
+        profile = DonorProfile.objects.create(
+            user=donor_user,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            latitude=10.0,
+            longitude=10.0,
+            is_available=True,
+        )
+
+        self.assertEqual(
+            DonorMatching.objects.filter(blood_request=self.active_request).count(),
+            1,
+        )
+
+        # Update the profile twice more
+        profile.location = "New Location"
+        profile.save()
+        profile.latitude = 10.05
+        profile.save()
+
+        # Still exactly one DonorMatching record
+        self.assertEqual(
+            DonorMatching.objects.filter(blood_request=self.active_request).count(),
+            1,
+        )
+
+    # ------------------------------------------------------------------
+    # Test 5: Existing ACCEPTED / REJECTED status is preserved on profile update
+    # ------------------------------------------------------------------
+    def test_accepted_and_rejected_match_statuses_preserved_on_profile_update(self):
+        """
+        When a DonorProfile is updated, generate_matches() must not overwrite
+        ACCEPTED or REJECTED DonorMatching statuses.
+        """
+        # Donor A – compatible, will be matched and then ACCEPTED
+        user_a = self._create_user("retro_accepted@test.com")
+        profile_a = DonorProfile.objects.create(
+            user=user_a,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            latitude=10.0,
+            longitude=10.0,
+            is_available=True,
+        )
+
+        # Donor B – compatible, will be matched and then REJECTED
+        user_b = self._create_user("retro_rejected@test.com")
+        profile_b = DonorProfile.objects.create(
+            user=user_b,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            latitude=10.0,
+            longitude=10.0,
+            is_available=True,
+        )
+
+        match_a = DonorMatching.objects.get(
+            blood_request=self.active_request, donor=profile_a
+        )
+        match_a.status = DonorMatching.Status.ACCEPTED
+        match_a.save()
+
+        match_b = DonorMatching.objects.get(
+            blood_request=self.active_request, donor=profile_b
+        )
+        match_b.status = DonorMatching.Status.REJECTED
+        match_b.save()
+
+        # Now trigger another profile save (simulates a profile update)
+        profile_a.location = "Updated Location"
+        profile_a.save()
+
+        match_a.refresh_from_db()
+        match_b.refresh_from_db()
+
+        self.assertEqual(match_a.status, DonorMatching.Status.ACCEPTED)
+        self.assertEqual(match_b.status, DonorMatching.Status.REJECTED)
