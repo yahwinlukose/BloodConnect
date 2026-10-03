@@ -46,6 +46,14 @@ class DonorMatchingModelTests(TestCase):
             'match_score': 85.0
         }
 
+        # The DonorProfile post_save signal runs generate_matches() and may create a
+        # DonorMatching row for this (blood_request, donor) pair. Delete it so each
+        # model test starts from a clean slate and can call .create() freely.
+        DonorMatching.objects.filter(
+            blood_request=self.blood_request,
+            donor=self.donor_profile
+        ).delete()
+
     def test_valid_donor_matching_creation(self):
         match = DonorMatching.objects.create(**self.valid_data)
         self.assertEqual(DonorMatching.objects.count(), 1)
@@ -102,7 +110,10 @@ class DonorMatchingModelTests(TestCase):
             data['status'] = status_code
             match = DonorMatching(**data)
             try:
-                match.full_clean()
+                # Exclude unique constraint fields: the DonorProfile post_save signal
+                # may have already created a row for this (blood_request, donor) pair,
+                # so we only validate the status field itself here.
+                match.full_clean(exclude=['blood_request', 'donor'])
             except ValidationError:
                 self.fail(f"Validation failed for valid status {status_code}")
 

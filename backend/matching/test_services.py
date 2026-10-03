@@ -47,6 +47,27 @@ class MatchingServiceTests(TestCase):
         data['longitude'] = lon
         return BloodRequest.objects.create(**data)
 
+    def test_requester_is_excluded_from_matches(self):
+        req = self._create_request('O+')
+        
+        # Create a donor profile for the requester user
+        requester_donor = DonorProfile.objects.create(
+            user=self.requester_user,
+            blood_group='O+',
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender=DonorProfile.Gender.MALE,
+            is_available=True
+        )
+        
+        # Create another normal eligible donor
+        other_donor = self._create_donor('d1@e.com', 'O+')
+        
+        results = find_eligible_donors(req)
+        
+        # Should only return the other_donor, not the requester_donor
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['donor'], other_donor)
+
     # BLOOD COMPATIBILITY TESTS
     def test_o_neg_request_accepts_only_o_neg(self):
         req = self._create_request('O-')

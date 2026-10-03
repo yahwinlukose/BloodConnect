@@ -128,6 +128,50 @@ class DonorMatchingAPITests(TestCase):
         # Check nested blood request data
         self.assertEqual(data[0]['blood_request']['hospital_name'], "Hospital A")
 
+    def test_self_matches_are_excluded_from_donor_matches_list(self):
+        # Create a donor profile for the requester and a matching record
+        requester_donor = DonorProfile.objects.create(
+            user=self.requester,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            is_available=True
+        )
+        # Manually create an invalid self-match (simulating existing bad data)
+        DonorMatching.objects.create(
+            blood_request=self.req1,
+            donor=requester_donor,
+            status=DonorMatching.Status.PENDING
+        )
+        
+        self.client.force_authenticate(user=self.requester)
+        res = self.client.get('/api/donors/matches/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        
+        data = res.json()
+        # The self match must not be returned
+        self.assertEqual(len(data), 0)
+
+    def test_requester_cannot_accept_own_match(self):
+        # Create a donor profile for the requester and a matching record
+        requester_donor = DonorProfile.objects.create(
+            user=self.requester,
+            blood_group="O+",
+            date_of_birth=datetime.date(1990, 1, 1),
+            gender="MALE",
+            is_available=True
+        )
+        bad_match = DonorMatching.objects.create(
+            blood_request=self.req1,
+            donor=requester_donor,
+            status=DonorMatching.Status.PENDING
+        )
+        
+        self.client.force_authenticate(user=self.requester)
+        res = self.client.post(f'/api/donors/matches/{bad_match.id}/accept/')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.json()['detail'], "Cannot accept or reject a match for your own blood request.")
+
     def test_donor_accepts_own_match(self):
         # Initial status should be PENDING
         self.assertEqual(self.req1.status, BloodRequest.Status.PENDING)

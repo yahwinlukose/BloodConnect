@@ -32,6 +32,13 @@ class NotificationModelTests(TestCase):
             gender=DonorProfile.Gender.MALE
         )
         
+        # The DonorProfile post_save signal may have already created a DonorMatching row
+        # for this pair. Delete it so we can create one with the exact values this test expects.
+        DonorMatching.objects.filter(
+            blood_request=self.blood_request,
+            donor=self.donor_profile,
+        ).delete()
+
         self.donor_matching = DonorMatching.objects.create(
             blood_request=self.blood_request,
             donor=self.donor_profile,

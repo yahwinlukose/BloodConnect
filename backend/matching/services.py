@@ -48,11 +48,13 @@ def find_eligible_donors(blood_request):
     recipient_bg = blood_request.blood_group
     compatible_donor_bgs = COMPATIBILITY_MAP.get(recipient_bg, [])
 
-    # Find available donors with compatible blood group and valid DOB
+    # Find available donors with compatible blood group and valid DOB, excluding the requester
     donors = DonorProfile.objects.filter(
         is_available=True,
         blood_group__in=compatible_donor_bgs,
         date_of_birth__isnull=False
+    ).exclude(
+        user=blood_request.requester
     )
 
     today = datetime.date.today()

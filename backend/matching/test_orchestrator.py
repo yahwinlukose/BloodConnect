@@ -167,21 +167,32 @@ class OrchestratorTests(TestCase):
 
     def test_transaction_rollback_on_error(self):
         # 19. Database transaction is used correctly.
-        self._create_donor('d1@e.com', 'O+')
-        d2 = self._create_donor('d2@e.com', 'O+')
-        
-        original_get_or_create = DonorMatching.objects.get_or_create
-        
-        def side_effect(*args, **kwargs):
-            if kwargs.get('donor') == d2:
-                raise IntegrityError("Simulated DB error")
-            return original_get_or_create(*args, **kwargs)
-            
-        with patch('matching.orchestrator.DonorMatching.objects.get_or_create', side_effect=side_effect):
-            with self.assertRaises(IntegrityError):
-                generate_matches(self.blood_request)
-                
-        self.assertEqual(DonorMatching.objects.count(), 0)
+        # Disconnect the post_save signal so that _create_donor() does not
+        # trigger retroactive matching before the mock patch is installed.
+        from django.db.models.signals import post_save
+        from donors.signals import run_matching_on_donor_profile_save
+        from donors.models import DonorProfile as DP
+
+        post_save.disconnect(run_matching_on_donor_profile_save, sender=DP)
+        try:
+            self._create_donor('d1@e.com', 'O+')
+            d2 = self._create_donor('d2@e.com', 'O+')
+
+            original_get_or_create = DonorMatching.objects.get_or_create
+
+            def side_effect(*args, **kwargs):
+                if kwargs.get('donor') == d2:
+                    raise IntegrityError("Simulated DB error")
+                return original_get_or_create(*args, **kwargs)
+
+            with patch('matching.orchestrator.DonorMatching.objects.get_or_create', side_effect=side_effect):
+                with self.assertRaises(IntegrityError):
+                    generate_matches(self.blood_request)
+
+            self.assertEqual(DonorMatching.objects.count(), 0)
+        finally:
+            post_save.connect(run_matching_on_donor_profile_save, sender=DP)
+
 
     def test_unrelated_matches_unaffected(self):
         # 20. Existing unrelated matches for other requests are unaffected.

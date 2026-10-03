@@ -65,6 +65,8 @@ class DonorMatchesView(generics.ListAPIView):
         return DonorMatching.objects.filter(
             donor=donor_profile,
             blood_request__status__in=[BloodRequest.Status.PENDING, BloodRequest.Status.MATCHING]
+        ).exclude(
+            blood_request__requester=self.request.user
         ).order_by('-created_at')
 
 from rest_framework.views import APIView
@@ -89,6 +91,13 @@ class DonorMatchActionView(APIView):
             match = DonorMatching.objects.get(id=match_id, donor=donor_profile)
         except DonorMatching.DoesNotExist:
             raise NotFound(detail="Match not found or does not belong to the authenticated donor.")
+
+        # Business Rule: A requester cannot be matched to or accept their own request.
+        if match.blood_request.requester == request.user:
+            return Response(
+                {"detail": "Cannot accept or reject a match for your own blood request."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if match.status not in [DonorMatching.Status.PENDING, DonorMatching.Status.NOTIFIED]:
             return Response(
